@@ -3,13 +3,17 @@ from flask import Flask, request, abort, jsonify, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from sqlalchemy import func
-import dotenv
+from dotenv import load_dotenv
+from pathlib import Path
 import random
 import sys
 
 from models import setup_db, Question, Category, db
 
 QUESTIONS_PER_PAGE = 10
+
+env_path = Path('.') / '.env'
+load_dotenv(dotenv_path=env_path)
 
 def paginate_questions(request, selection):
   page = request.args.get('page', 1, type=int)
@@ -26,8 +30,7 @@ def create_app(test_config=None):
   app = Flask(__name__)
   setup_db(app)
   CORS(app, resources={r"/api/*": {'origins': '*'}})
-  app.secret_key = os.environ.get("secret-key")
-
+  app.secret_key = os.getenv('SECRET_KEY')
 
   @app.after_request
   def after_request(response):
@@ -116,9 +119,12 @@ def create_app(test_config=None):
     finally:
       db.session.close()
     if error:
-      abort(500)
+      abort(404)
     else:
-      return jsonify({'success': True})
+      return jsonify({
+        'success': True,
+        'deleted': question_id
+        })
     return None
 
   @app.route('/questions/search', methods=['POST'])
@@ -154,27 +160,27 @@ def create_app(test_config=None):
 
   @app.route('/quizzes', methods=['POST'])
   def play_quiz():
-    body = request.get_json()
-    previous_questions = body.get("previous_questions", [])
-    quiz_category = body.get("quiz_category", None)
     try:
-        category_id = int(quiz_category["id"])
-        if quiz_category:
-            if quiz_category["id"] == 0:
-                quiz = Question.query.all()
-            else:
-                quiz = Question.query.filter_by(category=category_id).all()
-        if not quiz:
-            return abort(422)
-        selected = []
-        for question in quiz:
-            if question.id not in previous_questions:
-                selected.append(question.format())
-        if len(selected) != 0:
-            result = random.choice(selected)
-            return jsonify({"question": result})
-        else:
-            return jsonify({"question": False})
+      body = request.get_json()
+      previous_questions = body.get("previous_questions", [])
+      quiz_category = body.get("quiz_category", None)
+      category_id = int(quiz_category["id"])
+      if quiz_category:
+          if quiz_category["id"] == 0:
+              quiz = Question.query.all()
+          else:
+              quiz = Question.query.filter_by(category=category_id).all()
+      if not quiz:
+          return abort(422)
+      selected = []
+      for question in quiz:
+          if question.id not in previous_questions:
+              selected.append(question.format())
+      if len(selected) != 0:
+          result = random.choice(selected)
+          return jsonify({"success": True, "question": result})
+      else:
+          return jsonify({"success": True, "question": False})
     except:
         abort(422)
 
@@ -202,13 +208,13 @@ def create_app(test_config=None):
       "message": "method not allowed"
     }), 405
 
-  @app.errorhandler(500)
-  def server_error(error):
+  @app.errorhandler(422)
+  def unprocessable(error):
     return jsonify({
       "success": False,
-      "error": 500,
-      "message": "internal server error"
-    }), 500
+      "error": 422,
+      "message": "request unprocessable"
+    }), 422
   
   return app
 
