@@ -21,7 +21,7 @@ export class AuthService {
   constructor() { }
 
   build_login_link(callbackPath = '') {
-    let link = 'https://';
+    let link = 'http://';
     link += this.url + '.auth0.com';
     link += '/authorize?';
     link += 'audience=' + this.audience + '&';
